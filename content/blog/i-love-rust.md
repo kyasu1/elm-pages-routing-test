@@ -2,11 +2,11 @@
 {
   "type": "blog",
   "author": "Dillon Kearns",
-  "title": "Hello `elm-pages`! 🚀",
+  "title": "I love Rust too! ",
   "description": "Here's an intro for my blog post to get you interested in reading more...",
   "image": "images/article-covers/hello.jpg",
-  "published": "2019-09-21",
-  "category": "elm",
+  "published": "2020-06-25",
+  "category": "rust",
 }
 ---
 

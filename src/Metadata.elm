@@ -13,6 +13,7 @@ type Metadata
     | Article ArticleMetadata
     | Author Data.Author.Author
     | BlogIndex
+    | Category
 
 
 type alias ArticleMetadata =
@@ -22,6 +23,7 @@ type alias ArticleMetadata =
     , author : Data.Author.Author
     , image : ImagePath Pages.PathKey
     , draft : Bool
+    , category : String
     }
 
 
@@ -50,7 +52,7 @@ decoder =
                             |> Decode.map Author
 
                     "blog" ->
-                        Decode.map6 ArticleMetadata
+                        Decode.map7 ArticleMetadata
                             (Decode.field "title" Decode.string)
                             (Decode.field "description" Decode.string)
                             (Decode.field "published"
@@ -72,7 +74,11 @@ decoder =
                                 |> Decode.maybe
                                 |> Decode.map (Maybe.withDefault False)
                             )
+                            (Decode.field "category" Decode.string)
                             |> Decode.map Article
+
+                    "category" ->
+                        Decode.succeed Category
 
                     _ ->
                         Decode.fail ("Unexpected page type " ++ pageType)

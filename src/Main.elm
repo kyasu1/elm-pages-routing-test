@@ -54,14 +54,14 @@ type alias Rendered =
 main : Pages.Platform.Program Model Msg Metadata Rendered
 main =
     Pages.Platform.init
-        { init = \_ -> init
+        { init = init
         , view = view
         , update = update
         , subscriptions = subscriptions
         , documents = [ markdownDocument ]
         , manifest = manifest
         , canonicalSiteUrl = canonicalSiteUrl
-        , onPageChange = Nothing
+        , onPageChange = Just OnPageChange
         , internals = Pages.internals
         }
         |> Pages.Platform.withFileGenerator generateFiles
@@ -110,23 +110,56 @@ markdownDocument =
 
 
 type alias Model =
-    {}
+    { category : Maybe String }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( Model, Cmd.none )
+parseAreaCode : String -> Maybe String
+parseAreaCode s =
+    case String.split "=" s of
+        [ "code", code ] ->
+            Just code
+
+        _ ->
+            Nothing
 
 
-type alias Msg =
-    ()
+init :
+    Maybe
+        { path : PagePath Pages.PathKey
+        , query : Maybe String
+        , fragment : Maybe String
+        }
+    -> ( Model, Cmd Msg )
+init maybePagePath =
+    case maybePagePath of
+        Just pagePath ->
+            if Pages.PagePath.toString pagePath.path == "category" then
+                ( Model (Maybe.andThen parseAreaCode pagePath.query), Cmd.none )
+
+            else
+                ( Model Nothing, Cmd.none )
+
+        _ ->
+            ( Model Nothing, Cmd.none )
+
+
+type Msg
+    = OnPageChange
+        { path : PagePath Pages.PathKey
+        , query : Maybe String
+        , fragment : Maybe String
+        }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        () ->
-            ( model, Cmd.none )
+        OnPageChange pagePath ->
+            if Pages.PagePath.toString pagePath.path == "category" then
+                ( { model | category = Maybe.andThen parseAreaCode pagePath.query }, Cmd.none )
+
+            else
+                ( { model | category = Nothing }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -165,7 +198,10 @@ pageView model siteMetadata page viewForPage =
         Metadata.Page metadata ->
             { title = metadata.title
             , body =
-                [ viewForPage
+                [ Element.row []
+                    [ Element.column [ Element.padding 10 ] [ sideBar model siteMetadata ]
+                    , Element.column [ Element.padding 20, Element.width Element.fill ] [ viewForPage ]
+                    ]
                 ]
 
             --        |> Element.textColumn
@@ -181,16 +217,82 @@ pageView model siteMetadata page viewForPage =
             , body =
                 [ Palette.blogHeading author.name
                 , Author.view [] author
-                , Element.paragraph [ Element.centerX, Font.center ] [ viewForPage ]
+                , Element.paragraph [ Element.centerX, Element.width Element.fill, Font.center ] [ viewForPage ]
                 ]
             }
 
         Metadata.BlogIndex ->
             { title = "elm-pages blog"
             , body =
-                [ Element.column [ Element.padding 20, Element.centerX ] [ Index.view siteMetadata ]
+                [ Element.row []
+                    [ Element.column [ Element.padding 10 ] [ sideBar model siteMetadata ]
+                    , Element.column [ Element.padding 20, Element.width Element.fill, Element.centerX ] [ Index.view siteMetadata ]
+                    ]
                 ]
             }
+
+        Metadata.Category ->
+            { title = "Category Page"
+            , body =
+                [ Element.row []
+                    [ Element.column [ Element.padding 10 ] [ sideBar model siteMetadata ]
+                    , Element.column [ Element.padding 20, Element.width Element.fill, Element.centerX ]
+                        [ case model.category of
+                            Just category ->
+                                categoryView category siteMetadata
+
+                            Nothing ->
+                                Element.text "Loading"
+                        ]
+                    ]
+                ]
+            }
+
+
+filterMetaData : String -> List ( PagePath Pages.PathKey, Metadata ) -> List ( PagePath Pages.PathKey, Metadata.ArticleMetadata )
+filterMetaData category =
+    List.filterMap
+        (\( path, meta ) ->
+            case meta of
+                Metadata.Article data ->
+                    if data.category == category then
+                        Just ( path, data )
+
+                    else
+                        Nothing
+
+                _ ->
+                    Nothing
+        )
+
+
+sideBar : Model -> List ( PagePath Pages.PathKey, Metadata ) -> Element msg
+sideBar model siteMetadata =
+    [ "elm", "js", "rust" ]
+        |> List.map
+            (\category ->
+                case filterMetaData category siteMetadata of
+                    [] ->
+                        Element.none
+
+                    h :: _ ->
+                        if Just category == model.category then
+                            Element.el [ Font.bold ] (Element.text category)
+
+                        else
+                            Element.link [ Font.color (Element.rgb 0 0 1) ] { url = "/category?code=" ++ category, label = Element.text category }
+            )
+        |> Element.column []
+
+
+categoryView : String -> List ( PagePath Pages.PathKey, Metadata ) -> Element msg
+categoryView picked siteMetadata =
+    filterMetaData picked siteMetadata
+        |> List.map
+            (\( path, data ) ->
+                Element.link [] { url = Pages.PagePath.toString path, label = Element.text data.title }
+            )
+        |> Element.column []
 
 
 commonHeadTags : List (Head.Tag Pages.PathKey)
@@ -288,6 +390,22 @@ head metadata =
                             }
 
                 Metadata.BlogIndex ->
+                    Seo.summaryLarge
+                        { canonicalUrlOverride = Nothing
+                        , siteName = "elm-pages"
+                        , image =
+                            { url = images.iconPng
+                            , alt = "elm-pages logo"
+                            , dimensions = Nothing
+                            , mimeType = Nothing
+                            }
+                        , description = siteTagline
+                        , locale = Nothing
+                        , title = "elm-pages blog"
+                        }
+                        |> Seo.website
+
+                Metadata.Category ->
                     Seo.summaryLarge
                         { canonicalUrlOverride = Nothing
                         , siteName = "elm-pages"

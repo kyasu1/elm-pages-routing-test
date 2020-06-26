@@ -7,6 +7,7 @@
   "image": "images/article-covers/mountains.jpg",
   "draft": true,
   "published": "2019-09-21",
+  "category": "js",
 }
 ---
 

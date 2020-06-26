@@ -38,6 +38,9 @@ view posts =
 
                         Metadata.BlogIndex ->
                             Nothing
+
+                        Metadata.Category ->
+                            Nothing
                 )
             |> List.sortWith postPublishDateDescending
             |> List.map postSummary
